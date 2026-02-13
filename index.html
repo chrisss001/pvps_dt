@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PVPS Cyber Wellness Tree</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* ==================== 1. 全局样式 ==================== */
+        body {
+            font-family: 'Fredoka', 'Comic Sans MS', sans-serif;
+            background-color: #e0f7fa;
+            margin: 0; padding: 0;
+            min-height: 100vh;
+            display: flex; flex-direction: column; align-items: center;
+            color: #4a4a4a; overflow-x: hidden;
+        }
+
+        header { text-align: center; padding: 10px; z-index: 10; }
+        h1 { margin: 0; color: #2E7D32; font-size: 2.2rem; text-shadow: 2px 2px 0px rgba(255,255,255,0.8); font-weight: 700; }
+        h2 { margin: 5px 0; color: #558b2f; font-size: 1.1rem; font-weight: 600; }
+
+        /* ==================== 2. 输入控制区 ==================== */
+        .controls-wrapper {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 30px; border-radius: 25px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+            display: flex; gap: 20px; justify-content: center; align-items: center;
+            margin-bottom: 10px; 
+            z-index: 999; /* 确保控制条在最最上面 */
+            border: 3px solid #AED581;
+        }
+
+        .input-group { display: flex; flex-direction: column; }
+        .input-group label { font-size: 1rem; font-weight: 700; margin-bottom: 6px; color: #558b2f; }
+        
+        input, textarea {
+            padding: 10px; border: 2px solid #DCEDC8; border-radius: 12px;
+            font-family: inherit; font-size: 1.1rem; background: #F1F8E9;
+            color: #1B5E20; /* 深绿色字，输入时看清 */
+        }
+        textarea { resize: none; width: 450px; height: 60px; }
+        input:focus, textarea:focus { outline: none; border-color: #8BC34A; background: #fff; }
+
+        .btn {
+            padding: 12px 25px; border: none; border-radius: 50px;
+            font-weight: bold; cursor: pointer; color: white;
+            transition: transform 0.2s; font-size: 1.1rem;
+            box-shadow: 0 4px 0px rgba(0,0,0,0.2); height: 50px;
+        }
+        .btn-add { background: #8BC34A; border-bottom: 4px solid #689F38; }
+        .btn-pdf { background: #039BE5; border-bottom: 4px solid #01579B; margin-left: 10px; }
+        .btn:active { transform: translateY(4px); border-bottom-width: 0; margin-bottom: 4px; }
+
+        /* ==================== 3. 截图画布区域 (关键层级设置) ==================== */
+        #capture-area {
+            position: relative;
+            width: 1100px; height: 750px;
+            background: linear-gradient(180deg, #81D4FA 0%, #B3E5FC 60%, #E1F5FE 100%);
+            display: flex; justify-content: center; align-items: flex-end;
+            overflow: hidden; border-radius: 30px;
+            border: 8px solid #fff;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+            /* 强制建立堆叠上下文，防止子元素跑出去 */
+            z-index: 0; 
+        }
+
+        /* 背景元素：层级 1-2 */
+        .rainbow {
+            position: absolute; width: 1400px; height: 1400px;
+            border-radius: 50%; top: 150px; left: 50%; transform: translateX(-50%);
+            box-shadow: 
+                0 0 0 40px rgba(255, 235, 59, 0.4), 
+                0 0 0 80px rgba(255, 152, 0, 0.4), 
+                0 0 0 120px rgba(244, 67, 54, 0.4), 
+                0 0 0 160px rgba(76, 175, 80, 0.2), 
+                0 0 0 200px rgba(33, 150, 243, 0.2);
+            z-index: 1; opacity: 0.6; pointer-events: none;
+        }
+        .cloud { position: absolute; background: #fff; border-radius: 50px; opacity: 0.9; z-index: 2; }
+        .c1 { width: 140px; height: 50px; top: 60px; left: 100px; box-shadow: 20px -20px 0 -5px #fff; }
+        .c2 { width: 120px; height: 40px; top: 120px; right: 150px; box-shadow: -15px -15px 0 -5px #fff; }
+
+        /* 树干容器 */
+        .tree-container {
+            position: absolute; bottom: 60px; left: 50%;
+            transform: translateX(-50%); width: 800px; height: 650px; 
+            z-index: 10; /* 树的基准层级 */
+        }
+
+        /* 树干 SVG: 层级 1 (在容器内最底层) */
+        svg {
+            position: relative;
+            z-index: 1; 
+            overflow: visible;
+        }
+
+        /* 标题气泡: 层级 500 (在容器内最高层，防止被叶子挡住) */
+        .speech-bubble {
+            position: absolute; top: 200px; left: -100px; width: 240px;
+            background: #fff; padding: 20px; border-radius: 30px;
+            text-align: center; color: #333;
+            box-shadow: 4px 8px 0 rgba(0,0,0,0.1); 
+            z-index: 500; /* 这里的层级非常重要 */
+            animation: floatBubble 5s ease-in-out infinite;
+        }
+        .speech-bubble h3 { margin: 0; font-size: 1.8rem; color: #FF6F00; font-weight: 800; }
+        .speech-bubble .sub-text { font-size: 0.9rem; color: #666; margin-top: 5px; font-weight: 600; }
+        .speech-bubble::after {
+            content: ''; position: absolute; right: -15px; top: 50%;
+            border-width: 15px; border-style: solid;
+            border-color: transparent transparent transparent #fff;
+            transform: translateY(-50%);
+        }
+        @keyframes floatBubble { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+        /* 叶子层容器: 层级 100 (在树干之上) */
+        #leaves-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 100;
+        }
+
+        /* 单个叶子: 样式修复 */
+        .leaf {
+            position: absolute;
+            width: 130px; height: 130px; 
+            border-radius: 4px 80px 4px 80px;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center; text-align: center;
+            box-shadow: 3px 6px 0px rgba(0,0,0,0.2); 
+            padding: 14px; box-sizing: border-box;
+            transform-origin: center;
+            cursor: pointer;
+            opacity: 1 !important; /* 强制不透明 */
+            border: 3px solid #FFFFFF; 
+            z-index: 10; /* 叶子内部层级 */
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .leaf:hover { 
+            transform: scale(1.2) rotate(0deg) !important; 
+            z-index: 200 !important; /* 鼠标悬停时置顶 */
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        }
+
+        /* 字体: 黑色、加粗、Arial (清晰度优先) */
+        .leaf-class, .leaf-name, .leaf-promise {
+            font-family: Arial, sans-serif;
+            color: #000000 !important; /* 纯黑 */
+            position: relative;
+            z-index: 2; /* 文字在叶子颜色块之上 */
+        }
+        .leaf-class { font-size: 0.9rem; font-weight: 900; margin-bottom: 2px; }
+        .leaf-name { font-size: 1.1rem; font-weight: 900; margin: 2px 0; white-space: nowrap; overflow: hidden; max-width: 100%; }
+        .leaf-promise { font-size: 0.85rem; font-weight: 700; font-style: italic; line-height: 1.1; max-height: 42px; overflow: hidden; }
+
+        @keyframes popIn {
+            0% { transform: scale(0); }
+            100% { transform: scale(1) rotate(var(--r)); }
+        }
+
+        .ground {
+            position: absolute; bottom: 0; width: 100%; height: 80px;
+            background: #8BC34A; border-radius: 50% 50% 0 0 / 20px 20px 0 0;
+            box-shadow: inset 0 10px 0 #7CB342; z-index: 5;
+        }
+
+        /* Loading 遮罩 */
+        #loading {
+            display: none; position: fixed; top:0; left:0; width:100%; height:100%;
+            background: rgba(255,255,255,0.95); z-index: 10000;
+            justify-content: center; align-items: center; flex-direction: column;
+        }
+        .spinner { border: 6px solid #f3f3f3; border-top: 6px solid #039BE5; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>🛡️ PVPS Cyber Wellness Tree</h1>
+        <h2>Building a Safe & Happy Digital Community</h2>
+    </header>
+
+    <div class="controls-wrapper">
+        <div class="input-group">
+            <label>Class</label>
+            <input type="text" id="classInput" placeholder="4A" maxlength="6" style="width: 80px; height: 40px;">
+        </div>
+        <div class="input-group">
+            <label>Name</label>
+            <input type="text" id="nameInput" placeholder="Name" maxlength="12" style="width: 140px; height: 40px;">
+        </div>
+        <div class="input-group">
+            <label>My Promise</label>
+            <textarea id="promiseInput" placeholder="I will use kind words..." style="height: 60px; width: 450px;"></textarea>
+        </div>
+        <button class="btn btn-add" onclick="attemptAddLeaf()">Plant 🌱</button>
+        <button class="btn btn-pdf" onclick="generatePDF()">Save Tree 📷</button>
+    </div>
+
+    <div id="loading">
+        <div class="spinner"></div>
+        <p style="font-size: 1.5rem; font-weight: bold; color:#0277BD;">Creating HD Snapshot...</p>
+    </div>
+
+    <div id="capture-area">
+        <div class="counter-badge" style="position: absolute; top: 25px; right: 30px; background: #FFF; padding: 10px 20px; border-radius: 15px; border: 3px solid #FFD54F; font-weight: 700; color: #F57F17; font-size: 1.4rem; z-index: 50;">
+            <span id="counter">0</span> Promises
+        </div>
+        
+        <div class="rainbow"></div>
+        <div class="cloud c1"></div>
+        <div class="cloud c2"></div>
+
+        <div class="tree-container">
+            <div class="speech-bubble">
+                <h3>“I Promise”</h3>
+                <div class="sub-text">to be a responsible digital citizen</div>
+            </div>
+
+            <svg viewBox="0 0 800 650" width="100%" height="100%" style="overflow: visible;">
+                <path d="M360,650 Q340,550 350,500 Q330,450 400,380 L440,380 Q510,450 490,500 Q500,550 480,650 Z" fill="#795548" />
+                <g>
+                    <circle cx="250" cy="350" r="140" fill="#2E7D32" />
+                    <circle cx="550" cy="350" r="140" fill="#2E7D32" />
+                    <circle cx="400" cy="200" r="150" fill="#2E7D32" />
+                    <circle cx="200" cy="280" r="130" fill="#43A047" />
+                    <circle cx="600" cy="280" r="130" fill="#43A047" />
+                    <circle cx="300" cy="150" r="130" fill="#43A047" />
+                    <circle cx="500" cy="150" r="130" fill="#43A047" />
+                    <circle cx="400" cy="280" r="160" fill="#66BB6A" />
+                    <circle cx="300" cy="380" r="120" fill="#81C784" />
+                    <circle cx="500" cy="380" r="120" fill="#81C784" />
+                </g>
+            </svg>
+
+            <div id="leaves-layer"></div>
+        </div>
+
+        <div class="ground"></div>
+    </div>
+
+    <script>
+        let count = 0;
+        const placedLeaves = [];
+        
+        // 使用深色、高饱和度的颜色，确保 PDF 中不透明且清晰
+        const colors = [
+            '#FF7043', // 深橙色
+            '#FFCA28', // 深琥珀色
+            '#FFEE58', // 实心黄
+            '#66BB6A', // 鲜绿
+            '#42A5F5', // 鲜蓝
+            '#AB47BC', // 鲜紫
+            '#EC407A', // 鲜粉
+            '#8D6E63', // 暖棕
+            '#26C6DA'  // 青色
+        ];
+        
+        const MIN_DISTANCE = 90; // 叶子间距
+
+        function attemptAddLeaf() {
+            const classVal = document.getElementById('classInput').value.trim();
+            const nameVal = document.getElementById('nameInput').value.trim();
+            const promiseVal = document.getElementById('promiseInput').value.trim();
+
+            if (!classVal || !nameVal || !promiseVal) {
+                alert("Please fill in all boxes to make your promise!");
+                return;
+            }
+
+            const position = findSafePosition();
+            if (!position) {
+                alert("The tree is full! What a wonderful community!");
+                return;
+            }
+            createLeaf(position.x, position.y, classVal, nameVal, promiseVal);
+        }
+
+        function findSafePosition() {
+            // 尝试找个空位
+            for (let i = 0; i < 200; i++) {
+                const centerX = 400; const centerY = 280; 
+                const radiusX = 280; const radiusY = 200; 
+                const angle = Math.random() * Math.PI * 2;
+                const r = Math.sqrt(Math.random()) * 0.95; 
+
+                const x = centerX + (r * radiusX * Math.cos(angle)) - 65; 
+                const y = centerY + (r * radiusY * Math.sin(angle)) - 65;
+
+                let safe = true;
+                for (let leaf of placedLeaves) {
+                    const dx = leaf.x - x;
+                    const dy = leaf.y - y;
+                    const distance = Math.sqrt(dx*dx + dy*dy);
+                    if (distance < MIN_DISTANCE) { safe = false; break; }
+                }
+                if (safe) return {x, y};
+            }
+            return null;
+        }
+
+        function createLeaf(x, y, cls, name, promise) {
+            const layer = document.getElementById('leaves-layer');
+            const leaf = document.createElement('div');
+            leaf.className = 'leaf';
+            leaf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+            leaf.style.left = x + 'px';
+            leaf.style.top = y + 'px';
+            
+            const rot = Math.floor(Math.random() * 60) - 30; 
+            leaf.style.setProperty('--r', rot + 'deg');
+            placedLeaves.push({x, y});
+
+            // 这里的文字强制黑色
+            leaf.innerHTML = `
+                <div class="leaf-class">${cls}</div>
+                <div class="leaf-name">${name}</div>
+                <div class="leaf-promise">"${promise}"</div>
+            `;
+            layer.appendChild(leaf);
+            count++;
+            document.getElementById('counter').innerText = count;
+            document.getElementById('promiseInput').value = "";
+            document.getElementById('nameInput').value = "";
+        }
+
+        async function generatePDF() {
+            const { jsPDF } = window.jspdf;
+            const element = document.getElementById('capture-area');
+            const loading = document.getElementById('loading');
+            loading.style.display = 'flex';
+            
+            // 等待一下，防止动画未结束导致截图模糊
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            try {
+                // html2canvas 配置：确保背景不透明
+                const canvas = await html2canvas(element, { 
+                    scale: 3, 
+                    backgroundColor: '#ffffff',
+                    useCORS: true
+                });
+                
+                const imgData = canvas.toDataURL('image/jpeg', 0.98);
+                const pdf = new jsPDF('l', 'mm', 'a4');
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                const canvasRatio = canvas.width / canvas.height;
+                const pdfRatio = pdfWidth / pdfHeight;
+                
+                let finalW, finalH;
+                if (canvasRatio > pdfRatio) { 
+                    finalW = pdfWidth; 
+                    finalH = pdfWidth / canvasRatio; 
+                } else { 
+                    finalH = pdfHeight; 
+                    finalW = pdfHeight * canvasRatio; 
+                }
+                
+                const x = (pdfWidth - finalW) / 2;
+                const y = (pdfHeight - finalH) / 2;
+                
+                pdf.addImage(imgData, 'JPEG', x, y, finalW, finalH);
+                pdf.save('PVPS-Cyber-Wellness-Tree.pdf');
+            } catch (error) { 
+                console.error(error); 
+                alert("Error generating PDF."); 
+            } finally { 
+                loading.style.display = 'none'; 
+            }
+        }
+    </script>
+</body>
+</html>
